@@ -1,0 +1,148 @@
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "Ap5Mail.ch"
+
+//SZ1 - PRODUTO x WEB
+//SZ2 - Imagens
+//SZ3 - Caracteristicas
+//SZ4 - Fabricante
+//SZ5 - Transportadora X Web
+
+/*
+------------------------------------------------------------------------------------------------------------
+Função		: AnyAcesso
+Tipo		: CLS = Classe
+Descrição	: Classe para conexão
+Parâmetros	:
+Retorno		:
+------------------------------------------------------------------------------------------------------------
+Atualizações:
+- 09/04/2016 - Henrique - Construção inicial do fonte
+------------------------------------------------------------------------------------------------------------
+*/
+Class AnyAcesso
+
+	Data cToken
+	Data cURLBase
+	Data aHeadStr
+						
+	Method New() CONSTRUCTOR
+	Method EmailErro()
+	Method Conectado()
+			
+EndClass
+
+/*
+------------------------------------------------------------------------------------------------------------
+Função		: New
+Tipo		: MTH = Metodo
+Descrição	: Construtor do Objeto
+Parâmetros	:
+Retorno		: Objeto
+------------------------------------------------------------------------------------------------------------
+Atualizações:
+- 09/04/2016 - Henrique - Construção inicial do fonte
+------------------------------------------------------------------------------------------------------------
+*/                                                                                   
+Method New() Class AnyAcesso
+	//======================================================================	
+	//Documentação	: http://developers.anymarket.com.br
+	//======================================================================
+
+	//Inicializador das variaveis
+	::cToken		:= ""
+	::cURLBase		:= "http://sandbox-api.anymarket.com.br/v2"
+	
+	::aHeadStr		:= {}
+	
+	//Incluir chaves no vetor para autenticação
+	aadd(::aHeadStr,'User-Agent: Mozilla/4.0 (compatible; Protheus '+GetBuild()+')')
+	aAdd(::aHeadStr,"Content-Type: application/json")
+	aadd(::aHeadStr,"gumgaToken:"+::cToken)
+
+Return Self    
+
+/*
+------------------------------------------------------------------------------------------------------------
+Função		: New
+Tipo		: MTH = Metodo
+Descrição	: Envio de Email com erros de integração REST
+Parâmetros	: aExp1 = Mensagem de erro
+Retorno		: Boolena
+------------------------------------------------------------------------------------------------------------
+Atualizações:'
+- 09/04/2016 - Henrique - Construção inicial do fonte
+------------------------------------------------------------------------------------------------------------
+*/                                                                                                               
+Method EmailErro(aMsgErro) Class AnyAcesso	
+	Local cDestin	:= SuperGetMv('MV_YANYEML', .F., "henrique@autovixsa.com.br;hermes.reis@gmail.com")
+	Local cAssunto	:= "Erro na Integração com a AnyMarket"
+	Local cMensagem	:= ""
+	Local i 		:= 0 
+	Local lOk		:= .F.
+
+	Default aMsgErro 	:= {}
+	
+	For i := 1 to Len(aMsgErro)
+		cMensagem += aMsgErro[i]+CHR(13)+CHR(10)+CHR(13)+CHR(10) 	
+	Next
+	
+	If cMensagem <> ''
+		lOk := U_EnvEmail(cDestin, cAssunto, cMensagem)
+	EndIf
+
+Return lOk
+
+/*
+------------------------------------------------------------------------------------------------------------
+Função		: Conectado
+Tipo		: MTH = Metodo
+Descrição	: Analisa se o Protheus está conectando na AnyMarket
+Parâmetros	: 
+Retorno		: Boolena
+------------------------------------------------------------------------------------------------------------
+Atualizações:'
+- 09/04/2016 - Henrique - Construção inicial do fonte
+------------------------------------------------------------------------------------------------------------
+*/  
+Method Conectado() Class AnyAcesso
+	Local cRespJSON	:= ''
+	Local cHeaderRet 	:= ''
+	Local cUrl			:= ::cURLBase+'/products?limit=1&offset=0'
+
+	cRespJSON 			:= HTTPGET(cUrl,,,::aHeadStr,@cHeaderRet)
+	lRet := cRespJSON <> NIL .and. ("200 OK" $ cHeaderRet .or. "201 Created" $ cHeaderRet)
+
+Return lRet
+
+
+User Function EnvEmail(cDestin,cAssunto,cMensagem,cAnexos)
+ 
+	Local cServer     := GetMV("MV_RELSERV")
+	Local cAccount    := GetMV("MV_RELACNT")
+	Local cPassword   := GetMV("MV_RELPSW")
+	Local lOk         := .f.
+	                
+	Default cAnexos   := ""
+	Default cMensagem := ""
+	Default lUsaLogado:= .F.
+	Default cDestin   := ''
+
+	CONNECT SMTP SERVER cServer ACCOUNT cAccount PASSWORD cPassword RESULT lOK
+	                 
+	      If lOk
+	     
+	            // Autenticacao para envio
+	            Mailauth(cAccount,cPassword)
+	           
+	            SEND MAIL FROM    cAccount;
+	            TO                cDestin; 
+	            SUBJECT           cAssunto;
+	            BODY              cMensagem;
+	            ATTACHMENT        cAnexos;
+	            RESULT            lOK
+	 
+	      EndIf
+	                                             
+	DISCONNECT SMTP SERVER
+                 
+Return(lOk)
